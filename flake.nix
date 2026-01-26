@@ -4,9 +4,10 @@
     inputs = {
         nixpkgs.url = "nixpkgs";
         flake-utils.url = "github:numtide/flake-utils";
+        gradle2nix.url = "github:tadfisher/gradle2nix/v2";
     };
 
-    outputs = { nixpkgs, flake-utils, ... }:
+    outputs = { nixpkgs, flake-utils, gradle2nix, ... }:
     flake-utils.lib.eachDefaultSystem (system:
     let
         lib = nixpkgs.lib;
@@ -15,9 +16,10 @@
             config = {allowUnfree = true;};
         };
     in {
-        packages.default = pkgs.stdenvNoCC.mkDerivation rec {
+        packages.default = gradle2nix.builders."${system}".buildGradlePackage rec {
             pname = "groovy-language-server";
             version = "0-unstable-2025-12-03";
+            lockFile = ./gradle.lock;
 
             src = pkgs.fetchFromGitHub {
                 name = "${pname}-${version}";
@@ -34,7 +36,7 @@
             ];
 
             buildPhase = ''
-                ./gradlew build
+                ${pkgs.gradle}/bin/gradle --offline build
             '';
 
             installPhase = ''
