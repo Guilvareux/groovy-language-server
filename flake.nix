@@ -4,10 +4,9 @@
     inputs = {
         nixpkgs.url = "nixpkgs";
         flake-utils.url = "github:numtide/flake-utils";
-        gradle2nix.url = "github:tadfisher/gradle2nix/v2";
     };
 
-    outputs = { nixpkgs, flake-utils, gradle2nix, ... }:
+    outputs = { nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
     let
         lib = nixpkgs.lib;
@@ -16,10 +15,14 @@
             config = {allowUnfree = true;};
         };
     in {
-        packages.default = gradle2nix.builders."${system}".buildGradlePackage rec {
+        packages.default = pkgs.stdenv.mkDerivation (finalAttrs: rec {
             pname = "groovy-language-server";
             version = "0-unstable-2025-12-03";
-            lockFile = ./gradle.lock;
+
+            mitmCache = pkgs.gradle.fetchDeps {
+                pkg = finalAttrs.finalPackage;
+                data = ./deps.json;
+            };
 
             src = pkgs.fetchFromGitHub {
                 name = "${pname}-${version}";
@@ -29,15 +32,22 @@
                 sha256 = "sha256-rLi6xvGFVRvAVmP59Te1MxKA6HzQ+qPtEC5lMws5tFQ=";
             };
 
-            buildInputs = with pkgs; [
-                jdk
+            __darwinAllowLocalNetworking = true;
+
+            gradleFlags = [ "-Dfile.encoding=utf-8" ];
+
+            gradleBuildTask = "shadowJar";
+
+            doCheck = true;
+
+            nativeBuildInputs = with pkgs; [
                 gradle
                 makeWrapper
             ];
 
-            buildPhase = ''
-                ${pkgs.gradle}/bin/gradle --offline build
-            '';
+            buildInputs = with pkgs; [
+                jdk
+            ];
 
             installPhase = ''
                 mkdir -p $out/share/java
@@ -56,8 +66,12 @@
                 longDescription = "Groovy Language Server";
                 license = licenses.asl20;
                 platforms = platforms.all;
+                sourceProvenance = with lib.sourceTypes; [
+                    fromSource
+                    binaryBytecode # mitm cache
+                ];
                 maintainers = [ ];
             };
-        };
+        });
     });
 }
